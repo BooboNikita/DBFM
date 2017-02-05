@@ -49,14 +49,69 @@ class ViewController: UIViewController,UITableViewDataSource,UITableViewDelegate
         eHttp.onSearch(url: "https://douban.fm/j/mine/playlist?type=n&channel=3&from=mainsite")
         
         tv.backgroundColor=UIColor.clear
-        
+        do {
+            try AVAudioSession.sharedInstance().setCategory(AVAudioSessionCategoryPlayAndRecord)
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            
+        }
+        self.setLockView()
+        UIApplication.shared.beginReceivingRemoteControlEvents()
         btnPlay.addTarget(self, action: #selector(onPlay(btn:)), for: .touchUpInside)
         btnNext.addTarget(self, action: #selector(onClick(btn:)), for: .touchUpInside)
         btnPre.addTarget(self, action: #selector(onClick(btn:)), for: .touchUpInside)
         btnOrder.addTarget(self, action: #selector(onOrder(btn:)), for: .touchUpInside)
         NotificationCenter.default.addObserver(self, selector:#selector(ViewController.playFinish), name: .MPMoviePlayerPlaybackDidFinish, object: audioPlayer)
     }
-    
+    func setLockView(){
+        
+        if tableData.count>0{
+            var rowData:JSON=self.tableData[curIndex]
+            let img=UIImageView()
+            onGetCacheImage(url: rowData["picture"].string!, imgView: img)
+            print("hah")
+            print(rowData["artist"].string  ?? "无")
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = [
+            // 歌曲名称
+            MPMediaItemPropertyTitle:rowData["title"].string ?? "无",
+            // 演唱者
+            MPMediaItemPropertyArtist:rowData["artist"].string ?? "无",
+            // 锁屏图片
+            
+            MPMediaItemPropertyArtwork:MPMediaItemArtwork(image: img.image!),
+            //
+            MPNowPlayingInfoPropertyPlaybackRate:1.0,
+            // 总时长
+            MPMediaItemPropertyPlaybackDuration:audioPlayer.duration,
+            // 当前时间        
+            MPNowPlayingInfoPropertyElapsedPlaybackTime:audioPlayer.currentPlaybackTime
+        ]
+        }
+    }
+    override func remoteControlReceived(with event: UIEvent?) {
+        switch event!.subtype {
+        case .remoteControlPlay:  // play按钮
+            audioPlayer.play()
+            btnPlay.onClick()
+        case .remoteControlPause:  // pause按钮
+            audioPlayer.pause()
+            btnPlay.onClick()
+        case .remoteControlNextTrack:  // next
+            curIndex += 1
+            if curIndex>self.tableData.count-1{
+                curIndex=0
+            }
+            onSelectedRow(index: curIndex)
+        case .remoteControlPreviousTrack:  // previous
+            curIndex -= 1
+            if curIndex<0{
+                curIndex=self.tableData.count-1
+            }
+            onSelectedRow(index: curIndex)
+        default:
+            break
+        }
+    }
     func playFinish(){
         if isAutoFinish{
             switch btnOrder.order {
@@ -168,6 +223,7 @@ class ViewController: UIViewController,UITableViewDataSource,UITableViewDelegate
     func onSelectedRow(index:Int){
         let indexPath=IndexPath(row: index, section: 0)
         tv.selectRow(at: indexPath, animated: true, scrollPosition: .top)
+        
         var rowData:JSON=self.tableData[index]
         let imgUrl=rowData["picture"].string
         onSetImage(url: imgUrl!)
@@ -202,6 +258,7 @@ class ViewController: UIViewController,UITableViewDataSource,UITableViewDelegate
         self.audioPlayer.contentURL=NSURL(string: url) as URL!
         self.audioPlayer.play()
         btnPlay.onPlay()
+//        self.setLockView()
         timer?.invalidate()
         playTime.text="00:00"
         timer=Timer.scheduledTimer(timeInterval: 0.4, target: self, selector: #selector(ViewController.onUpdate), userInfo: nil, repeats: true)
